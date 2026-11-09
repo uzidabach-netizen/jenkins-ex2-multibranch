@@ -2,15 +2,14 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME     = "myapp-dev"
+        IMAGE_NAME     = "myapp-prod"
         IMAGE_TAG      = "${env.BUILD_NUMBER}"
-        CONTAINER_NAME = "tictactoe-dev"
-        HOST_PORT      = "5001"
+        CONTAINER_NAME = "tictactoe-prod"
+        HOST_PORT      = "5000"
     }
 
-    // No triggers{} block here — under a Multibranch Pipeline, the job's own
-    // periodic branch scan already detects new commits on this branch and
-    // triggers a build automatically, for every branch it manages.
+    // No triggers block on purpose — production deploys happen deliberately
+    // (a human clicks Build Now), never automatically on every commit.
 
     stages {
         stage('Checkout') {
@@ -36,7 +35,13 @@ pipeline {
             }
         }
 
-        stage('Deploy to Dev') {
+        stage('Approval') {
+            steps {
+                input message: "Deploy build #${env.BUILD_NUMBER} to PRODUCTION?", ok: "Deploy"
+            }
+        }
+
+        stage('Deploy to Prod') {
             steps {
                 sh '''
                     docker rm -f $CONTAINER_NAME || true
@@ -47,8 +52,11 @@ pipeline {
     }
 
     post {
-        always {
-            echo "Dev pipeline finished with status: ${currentBuild.currentResult}"
+        success {
+            echo "Production deploy #${env.BUILD_NUMBER} succeeded."
+        }
+        failure {
+            echo "Production pipeline failed — nothing was deployed."
         }
     }
 }
